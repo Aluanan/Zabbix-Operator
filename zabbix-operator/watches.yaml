@@ -1,0 +1,5 @@
+---
+- version: v1alpha1
+  group: monitoring.frenchtoastman.com
+  kind: Zabbix
+  role: zabbix

@@ -1,0 +1,4 @@
+ansible>=2.9.0
+ansible-runner>=1.0.0
+ansible-runner-http>=1.0.0
+openshift>=0.11.0

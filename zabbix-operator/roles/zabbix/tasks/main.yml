@@ -1,0 +1,222 @@
+---
+# tasks file for zabbix
+- name: Create {{ instance }} namespace
+  k8s:
+    name: "{{ instance }}"
+    api_version: v1
+    kind: Namespace
+    state: "{{ state }}"
+
+- name: Create {{ instance }} configmap
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ instance }}-configmap"
+        namespace: "{{ instance }}"
+      data:
+        zabbix_server.conf: "{{ zabbix_server_conf}}"
+
+- name: Create {{ instance }} frontend service
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ instance }}-frontend"
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+          service: frontend
+      spec:
+        selector:
+          app: zabbix
+          service: frontend
+        ports:
+          - protocol: TCP
+            targetPort: 443
+            name: frontend
+            port: 443
+
+- name: Create {{ instance }} active data service
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ instance }}-active"
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+          service: active
+      spec:
+        selector:
+          app: zabbix
+          service: active
+        ports:
+          - protocol: TCP
+            targetPort: 10051
+            name: active
+            port: 10051
+
+- name: Create {{ instance }} passive data service
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ instance }}-passive"
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+          service: passive
+      spec:
+        selector:
+          app: zabbix
+          service: passive
+        ports:
+          - protocol: TCP
+            targetPort: 10051
+            name: passive
+            port: 10051
+
+- name: Create {{ instance }} database service
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ instance }}-database"
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+          service: database
+      spec:
+        selector:
+          app: zabbix
+          service: database
+        ports:
+          - protocol: TCP
+            targetPort: 5432
+            name: database
+            port: 5432
+
+- name: Create {{ instance }} zabbix deployment
+  k8s:
+    state: "{{ present }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: zabbix
+        name: zabbix
+        namespace: "{{ instance }}"
+      spec:
+        progressDeadlineSeconds: 600
+        replicas: 1
+        revisionHistoryLimit: 10
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+          type: RollingUpdate
+        template:
+          metadata:
+            labels:
+              app: zabbix
+          spec:
+            containers:
+              - env:
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        key: POSTGRES_PASSWORD
+                        name: zabbix-postgres
+                        optional: false
+                image: postgres:latest # change to custom image for zabbix usage
+                imagePullPolicy: Always
+                name: postgres-server
+                ports:
+                  - containerPort: 5432
+                    hostPort: 5432
+                    name: 5432tcp5432
+                    protocol: TCP
+                securityContext:
+                  allowPrivilegeEscalation: true
+                  capabilities:
+                    add:
+                      - ALL
+                  privileged: false
+                  readOnlyRootFilesystem: false
+                  runAsNonRoot: false
+              - image: zabbix/zabbix-server-pgsql
+                imagePullPolicy: Always
+                name: zabbix-server
+                ports:
+                  - containerPort: 10051
+                    hostPort: 10051
+                    name: 10051tcp100510
+                    protocol: TCP
+                securityContext:
+                  allowPrivilegeEscalation: true
+                  capabilities:
+                    add:
+                      - ALL
+                  privileged: false
+                  readOnlyRootFilesystem: false
+                  runAsNonRoot: false
+                volumeMounts:
+                  - mountPath: /usr/lib/zabbix/alertscripts
+                    name: zabbix-server
+                    subPath: usr-lib-zabbix-alertscripts
+                  - mountPath: /usr/lib/zabbix/externalscripts
+                    name: zabbix-server
+                    subPath: usr-lib-zabbix-externalscripts
+                  - mountPath: /var/lib/zabbix/modules
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-modules
+                  - mountPath: /var/lib/zabbix/enc
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-enc
+                  - mountPath: /var/lib/zabbix/ssh_keys
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-sshkeys
+                  - mountPath: /var/lib/zabbix/ssl/certs
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-ssl-certs
+                  - mountPath: /var/lib/zabbix/ssl/keys
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-ssl-keys
+                  - mountPath: /var/lib/zabbix/ssl/ssl_ca
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-ssl-sslca
+                  - mountPath: /var/lib/zabbix/snmptraps
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-snmptraps
+                  - mountPath: /var/lib/zabbix/mibs
+                    name: zabbix-server
+                    subPath: var-lib-zabbix-mibs
+              - env:
+                  - name: ZBX_HOSTNAME
+                    value: Zabbix server
+                  - name: ZBX_PASSIVESERVERS
+                    value: 127.0.0.1
+                image: zabbix/zabbix-agent:latest
+                imagePullPolicy: Always
+                name: zabbix-agent
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  privileged: false
+                  readOnlyRootFilesystem: false
+                  runAsNonRoot: false
+            volumes:
+              - name: zabbix-server
+                persistentVolumeClaim:
+                  claimName: zabbix-server

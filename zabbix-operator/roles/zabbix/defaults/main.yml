@@ -1,0 +1,5 @@
+---
+# defaults file for zabbix
+instance: example-zabbix
+state: present
+zabbix_server_conf: "{{ lookup('file', '../files/zabbix_server.conf') }}"

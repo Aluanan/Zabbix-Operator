@@ -1,0 +1,7 @@
+apiVersion: monitoring.frenchtoastman.com/v1alpha1
+kind: Zabbix
+metadata:
+  name: example-zabbix
+spec:
+  # Add fields here
+  size: 3
