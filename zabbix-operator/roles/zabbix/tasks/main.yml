@@ -1,25 +1,19 @@
 ---
 # tasks file for zabbix
-- name: Create {{ instance }} namespace
-  k8s:
-    name: "{{ instance }}"
-    api_version: v1
-    kind: Namespace
-    state: "{{ state }}"
-
-- name: Create {{ instance }} configmap
+- name: Ensure namespace {{ instance }} {{ state }}
   k8s:
     state: "{{ state }}"
     definition:
       apiVersion: v1
-      kind: ConfigMap
+      kind: Namespace
       metadata:
-        name: "{{ instance }}-configmap"
-        namespace: "{{ instance }}"
-      data:
-        zabbix_server.conf: "{{ zabbix_server_conf}}"
+        name: "{{ instance }}"
+        labels:
+          app: zabbix
+          release: "{{ release }}"
+          domain: "{{ domain }}"
 
-- name: Create {{ instance }} postgres secret
+- name: Ensure zabbix-postgres secret {{ state }} in namespace {{ instance }}
   k8s:
     state: "{{ state }}"
     definition:
@@ -28,11 +22,77 @@
       metadata:
         name: zabbix-postgres
         namespace: "{{ instance }}"
+        labels:
+          app: postgres
+          tier: database
+          release: "{{ release }}"
+          domain: "{{ domain }}"
       type: Opaque
       data:
         POSTGRES_PASSWORD: "{{ base64_postgres_password }}"
 
-- name: Create {{ instance }} zabbix web services
+- name: Ensure postgres-server service {{ state }} in namespace {{ instance }}
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres-server
+        namespace: "{{ instance }}"
+        labels:
+          app: postgres
+          tier: database
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+      spec:
+        selector:
+          app: postgres
+          tier: database
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+        ports:
+          - targetPort: 5432
+            name: database
+            port: 5432
+            protocol: TCP
+
+- name: Ensure zabbix-server service {{ state }} in namespace {{ instance }}
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: zabbix-server
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+          tier: server
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+      spec:
+        type: NodePort
+        selector:
+          app: zabbix
+          tier: server
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+        ports:
+          - targetPort: 10051
+            name: active
+            port: 10051
+            protocol: TCP
+          - targetPort: 10050
+            name: agent-passive
+            port: 10050
+            protocol: TCP
+          - targetPort: 1162
+            port: 162
+            name: snmp-trap
+            protocol: UDP
+
+- name: Ensure zabbix-web services {{ state }} in namespace {{ instance }}
   k8s:
     state: "{{ state }}"
     definition:
@@ -42,11 +102,17 @@
         name: zabbix-web
         namespace: "{{ instance }}"
         labels:
-          app: zabbix-web
+          app: zabbix
+          tier: web
+          release: "{{ release }}"
+          domain: "{{ domain }}"
       spec:
         type: NodePort
         selector:
-          app: zabbix-web
+          app: zabbix
+          tier: web
+          release: "{{ release }}"
+          domain: "{{ domain }}"
         ports:
           - targetPort: 8443
             name: frontend-https
@@ -55,82 +121,7 @@
             name: frontend-http
             port: 80
 
-- name: Create {{ instance }} zabbix postgres service
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: postgres-server
-        namespace: "{{ instance }}"
-        labels:
-          app: postgres-server
-      spec:
-        type: NodePort
-        selector:
-          app: postgres-server
-        ports:
-          - protocol: TCP
-            targetPort: 5432
-            name: database
-            port: 5432
-
-- name: Create {{ instance }} zabbix data service
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: zabbix-server
-        namespace: "{{ instance }}"
-        labels:
-          app: zabbix-server
-      spec:
-        type: NodePort
-        selector:
-          app: zabbix-server
-        ports:
-          - protocol: TCP
-            targetPort: 10051
-            name: active
-            port: 10051
-          - protocol: TCP
-            targetPort: 10050
-            name: passive
-            port: 10050
-          - protocol: UDP
-            targetPort: 1162
-            port: 162
-            name: snmp-trap
-
-- name: Create {{ instance }} zabbix agent service
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: zabbix-agent
-        namespace: "{{ instance }}"
-        labels:
-          app: zabbix-agent
-      spec:
-        type: NodePort
-        selector:
-          app: zabbix-agent
-        ports:
-          - protocol: TCP
-            targetPort: 10051
-            name: active
-            port: 10051
-          - protocol: TCP
-            targetPort: 10050
-            name: passive
-            port: 10050
-
-- name: Create {{ instance }} postgres statefulset
+- name: Ensure postgres-server statefulset {{ state }} in namespace {{ instance }}
   k8s:
     state: "{{ state }}"
     definition:
@@ -138,8 +129,10 @@
       kind: StatefulSet
       metadata:
         labels:
-          app: postgres-server
+          app: postgres
+          tier: database
           release: "{{ release }}"
+          domain: "{{ domain }}"
         name: postgres-server
         namespace: "{{ instance }}"
       spec:
@@ -147,21 +140,25 @@
         serviceName:
         selector:
           matchLabels:
-            app: postgres-server
+            app: postgres
+            tier: database
             release: "{{ release }}"
+            domain: "{{ domain }}"
         template:
           metadata:
             labels:
-              app: postgres-server
+              app: postgres
+              tier: database
               release: "{{ release }}"
+              domain: "{{ domain }}"
           spec:
             containers:
               - name: postgres-server
-                imagePullPolicy: IfNotPresent
-                image: "{{ database_image }}"
+                imagePullPolicy: "{{ database_image_pull_policy | default(image_pull_policy) }}"
+                image: "{{ database_image }}:{{ database_image_tag }}"
                 ports:
                   - containerPort: 5432
-                    name: 5432tcp5432
+                    name: database
                     protocol: TCP
                 env:
                   - name: POSTGRES_PASSWORD
@@ -170,8 +167,33 @@
                         key: POSTGRES_PASSWORD
                         name: zabbix-postgres
                         optional: false
+                  - name: PGDATA
+                    value: /var/lib/postgresql/data
+                volumeMounts:
+                  - name: postgres-data
+                    mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+          - metadata:
+              name: postgres-data
+              labels:
+                app: postgres
+                tier: database
+                release: "{{ release }}"
+                domain: "{{ domain }}"
+            spec:
+              accessModes:
+                - ReadWriteMany
+              selector:
+                matchLabels:
+                  app: postgres
+                  tier: database
+                  release: "{{ release }}"
+                  domain: "{{ domain }}"
+              resources:
+                requests:
+                  storage: "{{ database_claim_size }}"
 
-- name: Create {{ instance }} zabbix-server deployment
+- name: Ensure zabbix-server deployment {{ state }} in namespace {{ instance }}
   k8s:
     state: "{{ state }}"
     definition:
@@ -179,38 +201,63 @@
       kind: Deployment
       metadata:
         labels:
-          app: zabbix-server
+          app: zabbix
+          tier: server
           release: "{{ release }}"
+          domain: "{{ domain }}"
         name: zabbix-server
         namespace: "{{ instance }}"
       spec:
-        replicas: 1
+        replicas: "{{ zabbix_server_replicas }}"
         selector:
           matchLabels:
-            app: zabbix-server
+            app: zabbix
+            tier: server
             release: "{{ release }}"
+            domain: "{{ domain }}"
         template:
           metadata:
             labels:
-              app: zabbix-server
+              app: zabbix
+              tier: server
               release: "{{ release }}"
+              domain: "{{ domain }}"
           spec:
             containers:
               - name: zabbix-server
-                imagePullPolicy: IfNotPresent
-                image: zabbix/zabbix-server-pgsql:alpine-trunk
+                image: "{{ custom_server_image | default(zabbix_server_image) }}:{{ custom_server_image_tag | default(zabbix_tag) }}"
+                imagePullPolicy: "{{ zabbix_server_image_pull_policy | default(image_pull_policy) }}"
                 ports:
                   - containerPort: 10051
-                    name: 10051tcp100510
-                    protocol: TCP
-                  - containerPort: 10050
-                    name: 10050tcp10050
+                    name: active-data
                     protocol: TCP
                 env:
                   - name: "DB_SERVER_HOST"
                     value: postgres-server
+                  - name: "ZBX_SERVER_NAME"
+                    value: zabbix-server
+              - name: zabbix-snmptraps
+                image: "{{ custom_server_image | default(zabbix_snmp_image) }}:{{ custom_server_image_tag |  default(zabbix_tag) }}"
+                imagePullPolicy: "{{ zabbix_snmp_image_pull_policy | default(image_pull_policy) }}"
+                ports:
+                  - containerPort: 1162
+                    name: snmp-trap
+                    protocol: UDP
+              - name: zabbix-agent
+                image: "{{ custom_agent_image | default(zabbix_agent_image) }}:{{ custom_agent_image_tag | default(zabbix_tag) }}"
+                imagePullPolicy: "{{ zabbix_agent_image_pull_policy | default(image_pull_policy) }}"
+                env:
+                  - name: ZBX_SERVER_HOST
+                    value: 127.0.0.1
+                ports:
+                  - containerPort: 10051
+                    name: agent-active
+                    protocol: TCP
+                  - containerPort: 10050
+                    name: agent-passive
+                    protocol: TCP
 
-- name: Create {{ instance }} zabbix-web deployment
+- name: Ensure zabbix-web deployment {{ state }} in namespace {{ instance }}
   k8s:
     state: "{{ state }}"
     definition:
@@ -218,26 +265,32 @@
       kind: Deployment
       metadata:
         labels:
-          app: zabbix-web
+          app: zabbix
+          tier: web
           release: "{{ release }}"
+          domain: "{{ domain }}"
         name: zabbix-web
         namespace: "{{ instance }}"
       spec:
-        replicas: 1
+        replicas: "{{ zabbix_web_replicas }}"
         selector:
           matchLabels:
-            app: zabbix-web
+            app: zabbix
+            tier: web
             release: "{{ release }}"
+            domain: "{{ domain }}"
         template:
           metadata:
             labels:
-              app: zabbix-web
+              app: zabbix
+              tier: web
               release: "{{ release }}"
+              domain: "{{ domain }}"
           spec:
             containers:
               - name: zabbix-web
-                imagePullPolicy: IfNotPresent
-                image: zabbix/zabbix-web-nginx-pgsql:alpine-trunk
+                image: "{{ custom_web_image | default(zabbix_web_image) }}:{{ custom_web_image_tag | default(zabbix_tag) }}"
+                imagePullPolicy: "{{ web_image_pull_policy | default(image_pull_policy) }}"
                 ports:
                   - containerPort: 80
                     name: http
@@ -256,32 +309,3 @@
                         key: POSTGRES_PASSWORD
                         name: zabbix-postgres
                         optional: false
-
-- name: Create {{ instance }} zabbix-agent deployment
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        labels:
-          app: zabbix-agent
-          release: "{{ release }}"
-        name: zabbix-agent
-        namespace: "{{ instance }}"
-      spec:
-        replicas: 1
-        selector:
-          matchLabels:
-            app: zabbix-agent
-            release: "{{ release }}"
-        template:
-          metadata:
-            labels:
-              app: zabbix-agent
-              release: "{{ release }}"
-          spec:
-            containers:
-              - name: zabbix-agent
-                image: zabbix/zabbix-agent:alpine-trunk
-                imagePullPolicy: IfNotPresent
