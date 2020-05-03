@@ -3,7 +3,7 @@ kind: Zabbix
 metadata:
   name: cluster-zabbix
 spec:
-  instance: default
+  instance: zabbix-two
   state: present
   release: 0.0.1
   domain: minikube
