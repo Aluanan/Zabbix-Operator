@@ -32,6 +32,7 @@ base64_postgres_password: emFiYml4 # Base64 encoded string for password
 ```bash
 $ git clone https://gitlab.com/frenchtoasters/zabbix-operator.git
 $ cd zabbix-operator/zabbix-operator
+$ kubectl create ns operator
 $ kubectl create -f deploy/crds/monitoring.frenchtoastman.com_zabbixes_crd.yaml
 $ kubectl create -f deploy/service_account.yaml
 $ kubectl create -f deploy/role.yaml
