@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zabbix-operator
+  namespace: operator
 spec:
   replicas: 1
   selector:
@@ -17,16 +18,14 @@ spec:
       containers:
         - name: zabbix-operator
           # Replace this with the built image name
-          image: "REPLACE_IMAGE"
+          image: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator:v0.0.1
           imagePullPolicy: "Always"
           volumeMounts:
           - mountPath: /tmp/ansible-operator/runner
             name: runner
           env:
             - name: WATCH_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+              value: ""
             - name: POD_NAME
               valueFrom:
                 fieldRef:

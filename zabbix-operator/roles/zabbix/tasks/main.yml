@@ -237,7 +237,7 @@
                   - name: "ZBX_SERVER_NAME"
                     value: zabbix-server
               - name: zabbix-snmptraps
-                image: "{{ custom_server_image | default(zabbix_snmp_image) }}:{{ custom_server_image_tag |  default(zabbix_tag) }}"
+                image: "{{ custom_snmp_image | default(zabbix_snmp_image) }}:{{ custom_snmp_image_tag |  default(zabbix_tag) }}"
                 imagePullPolicy: "{{ zabbix_snmp_image_pull_policy | default(image_pull_policy) }}"
                 ports:
                   - containerPort: 1162

@@ -1,0 +1,30 @@
+apiVersion: monitoring.frenchtoastman.com/v1alpha1
+kind: Zabbix
+metadata:
+  name: cluster-zabbix
+spec:
+  instance: zabbix
+  state: present
+  release: 0.0.1
+  domain: minikube
+  zabbix_server_replicas: 2
+  zabbix_web_replicas: 2
+  custom_server_image: zabbix/zabbix-server-pgsql
+  custom_server_image_tag: alpine-trunk
+  zabbix_server_image_pull_policy: IfNotPresent
+  custom_snmp_image: zabbix/zabbix-snmptraps
+  custom_snmp_image_tag: alpine-trunk
+  zabbix_snmp_image_pull_policy: IfNotPresent
+  custom_agent_image: zabbix/zabbix-agent
+  custom_agent_image_tag: alpine-trunk
+  zabbix_agent_image_pull_policy: IfNotPresent
+  custom_web_image: zabbix/zabbix-web-nginx-pgsql
+  custom_web_image_tag: alpine-trunk
+  web_image_pull_policy: IfNotPresent
+  # zabbix_tag: alpine-trunk
+  # image_pull_policy: IfNotPresent
+  database_image: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres
+  database_image_pull_policy: IfNotPresent
+  database_image_tag: latest
+  database_claim_size: 700M
+  base64_postgres_password: emFiYml4

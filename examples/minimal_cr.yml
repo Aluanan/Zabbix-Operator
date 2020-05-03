@@ -2,4 +2,3 @@ apiVersion: monitoring.frenchtoastman.com/v1alpha1
 kind: Zabbix
 metadata:
   name: example-zabbix
-  namespace: zabbix
