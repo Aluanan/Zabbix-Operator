@@ -4,7 +4,7 @@ This repo contains the code for the `frenchtoastman/zabbix-operator`.
 
 ## Operator Scope
 
-This operator is a `clusterScoped` operator.
+This operator is a `clusterScoped` operator. See more information about operator scope [here](https://github.com/operator-framework/operator-sdk/blob/master/website/content/en/docs/operator-scope.md)
 
 ## Operator defaults
 
@@ -38,6 +38,7 @@ $ kubectl create -f deploy/service_account.yaml
 $ kubectl create -f deploy/role.yaml
 $ kubectl create -f deploy/role_binding.yaml
 $ kubectl create -f deploy/operator.yaml
+$ kubectl create -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
 ```
 
 ## Test operator locally using minikube
@@ -51,11 +52,6 @@ $ kubectl create -f deploy/service_account.yaml
 $ kubectl create -f deploy/role.yaml
 $ kubectl create -f deploy/role_binding.yaml
 $ operator-sdk run --local
-```
-
-Once above is running open another `kubectl` window and try installing the minimal cluster
-
-```bash
 $ kubectl create -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml 
 ```
 
