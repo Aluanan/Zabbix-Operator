@@ -19,204 +19,146 @@
       data:
         zabbix_server.conf: "{{ zabbix_server_conf}}"
 
-- name: Create {{ instance }} frontend service
+- name: Create {{ instance }} postgres secret
   k8s:
     state: "{{ state }}"
     definition:
       apiVersion: v1
-      kind: Service
+      kind: Secret
       metadata:
-        name: "{{ instance }}-frontend"
+        name: zabbix-postgres
         namespace: "{{ instance }}"
-        labels:
-          app: zabbix
-          service: frontend
-      spec:
-        selector:
-          app: zabbix
-          service: frontend
-        ports:
-          - protocol: TCP
-            targetPort: 443
-            name: frontend
-            port: 443
+      type: Opaque
+      data:
+        POSTGRES_PASSWORD: "{{ base64_postgres_password }}"
 
-- name: Create {{ instance }} active data service
+- name: Create {{ instance }} web services
   k8s:
     state: "{{ state }}"
     definition:
       apiVersion: v1
       kind: Service
       metadata:
-        name: "{{ instance }}-active"
+        name: "zabbix-{{ instance }}-web"
         namespace: "{{ instance }}"
         labels:
           app: zabbix
-          service: active
       spec:
+        type: NodePort
         selector:
           app: zabbix
-          service: active
+        ports:
+          - targetPort: https
+            name: frontend-https
+            port: 443
+          - targetPort: http
+            name: frontend-http
+            port: 80
+
+- name: Create {{ instance }} data services
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "zabbix-{{ instance }}-data"
+        namespace: "{{ instance }}"
+        labels:
+          app: zabbix
+      spec:
+        type: NodePort
+        selector:
+          app: zabbix
         ports:
           - protocol: TCP
             targetPort: 10051
             name: active
             port: 10051
-
-- name: Create {{ instance }} passive data service
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: "{{ instance }}-passive"
-        namespace: "{{ instance }}"
-        labels:
-          app: zabbix
-          service: passive
-      spec:
-        selector:
-          app: zabbix
-          service: passive
-        ports:
           - protocol: TCP
-            targetPort: 10051
+            targetPort: 10050
             name: passive
-            port: 10051
+            port: 10050
 
-- name: Create {{ instance }} database service
+- name: Create {{ instance }} zabbix statefulset
   k8s:
     state: "{{ state }}"
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: "{{ instance }}-database"
-        namespace: "{{ instance }}"
-        labels:
-          app: zabbix
-          service: database
-      spec:
-        selector:
-          app: zabbix
-          service: database
-        ports:
-          - protocol: TCP
-            targetPort: 5432
-            name: database
-            port: 5432
-
-- name: Create {{ instance }} zabbix deployment
-  k8s:
-    state: "{{ present }}"
     definition:
       apiVersion: apps/v1
-      kind: Deployment
+      kind: StatefulSet
       metadata:
         labels:
           app: zabbix
-        name: zabbix
+          release: "{{ release }}"
+        name: "zabbix-{{ instance }}-pgsql"
         namespace: "{{ instance }}"
       spec:
-        progressDeadlineSeconds: 600
         replicas: 1
-        revisionHistoryLimit: 10
-        strategy:
-          rollingUpdate:
-            maxSurge: 1
-            maxUnavailable: 0
-          type: RollingUpdate
+        serviceName:
+        selector:
+          matchLabels:
+            app: zabbix
+            release: "{{ release }}"
         template:
           metadata:
             labels:
               app: zabbix
+              release: "{{ release }}"
           spec:
             containers:
-              - env:
+              - name: postgres-server
+                imagePullPolicy: IfNotPresent
+                image: "{{ database_image }}"
+                ports:
+                  - containerPort: 5432
+                    name: 5432tcp5432
+                    protocol: TCP
+                env:
                   - name: POSTGRES_PASSWORD
                     valueFrom:
                       secretKeyRef:
                         key: POSTGRES_PASSWORD
                         name: zabbix-postgres
                         optional: false
-                image: postgres:latest # change to custom image for zabbix usage
-                imagePullPolicy: Always
-                name: postgres-server
-                ports:
-                  - containerPort: 5432
-                    hostPort: 5432
-                    name: 5432tcp5432
-                    protocol: TCP
-                securityContext:
-                  allowPrivilegeEscalation: true
-                  capabilities:
-                    add:
-                      - ALL
-                  privileged: false
-                  readOnlyRootFilesystem: false
-                  runAsNonRoot: false
-              - image: zabbix/zabbix-server-pgsql
-                imagePullPolicy: Always
-                name: zabbix-server
+              - name: zabbix-server
+                imagePullPolicy: IfNotPresent
+                image: zabbix/zabbix-server-pgsql:alpine-trunk
                 ports:
                   - containerPort: 10051
-                    hostPort: 10051
                     name: 10051tcp100510
                     protocol: TCP
-                securityContext:
-                  allowPrivilegeEscalation: true
-                  capabilities:
-                    add:
-                      - ALL
-                  privileged: false
-                  readOnlyRootFilesystem: false
-                  runAsNonRoot: false
-                volumeMounts:
-                  - mountPath: /usr/lib/zabbix/alertscripts
-                    name: zabbix-server
-                    subPath: usr-lib-zabbix-alertscripts
-                  - mountPath: /usr/lib/zabbix/externalscripts
-                    name: zabbix-server
-                    subPath: usr-lib-zabbix-externalscripts
-                  - mountPath: /var/lib/zabbix/modules
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-modules
-                  - mountPath: /var/lib/zabbix/enc
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-enc
-                  - mountPath: /var/lib/zabbix/ssh_keys
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-sshkeys
-                  - mountPath: /var/lib/zabbix/ssl/certs
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-ssl-certs
-                  - mountPath: /var/lib/zabbix/ssl/keys
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-ssl-keys
-                  - mountPath: /var/lib/zabbix/ssl/ssl_ca
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-ssl-sslca
-                  - mountPath: /var/lib/zabbix/snmptraps
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-snmptraps
-                  - mountPath: /var/lib/zabbix/mibs
-                    name: zabbix-server
-                    subPath: var-lib-zabbix-mibs
-              - env:
+                  - containerPort: 10050
+                    name: 10050tcp10050
+                    protocol: TCP
+                env:
+                  - name: "DB_SERVER_HOST"
+                    value: "zabbix-{{ instance }}-pgsql-0"
+              - name: zabbix-web
+                imagePullPolicy: IfNotPresent
+                image: zabbix/zabbix-web-nginx-pgsql:alpine-trunk
+                ports:
+                  - containerPort: 80
+                    name: http
+                    protocol: TCP
+                  - containerPort: 443
+                    name: https
+                    protocol: TCP
+                env:
+                  - name: ZBX_SERVER_HOST
+                    value: "zabbix-{{ instance }}-pgsql-0"
+                  - name: DB_SERVER_HOST
+                    value: "zabbix-{{ instance }}-pgsql-0"
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        key: POSTGRES_PASSWORD
+                        name: zabbix-postgres
+                        optional: false
+              - name: zabbix-agent
+                image: zabbix/zabbix-agent:alpine-trunk
+                imagePullPolicy: Always
+                env:
                   - name: ZBX_HOSTNAME
-                    value: Zabbix server
+                    value: zabbix-server
                   - name: ZBX_PASSIVESERVERS
                     value: 127.0.0.1
-                image: zabbix/zabbix-agent:latest
-                imagePullPolicy: Always
-                name: zabbix-agent
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  privileged: false
-                  readOnlyRootFilesystem: false
-                  runAsNonRoot: false
-            volumes:
-              - name: zabbix-server
-                persistentVolumeClaim:
-                  claimName: zabbix-server

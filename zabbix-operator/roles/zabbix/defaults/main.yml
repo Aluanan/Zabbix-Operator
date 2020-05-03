@@ -2,4 +2,7 @@
 # defaults file for zabbix
 instance: example-zabbix
 state: present
+release: "v1"
 zabbix_server_conf: "{{ lookup('file', '../files/zabbix_server.conf') }}"
+database_image: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres
+base64_postgres_password: emFiYml4
