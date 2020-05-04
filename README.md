@@ -145,8 +145,8 @@ $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-data
 
 ### Release images
 
-``bash
+```bash
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/build:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest
-``
+```
