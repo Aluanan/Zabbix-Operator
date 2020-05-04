@@ -143,6 +143,12 @@ $ operator-sdk build registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-o
 $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest -f zabbix-database/Dockerfile .
 ```
 
+### Update database schema
+
+```bash
+$ docker run -it registry
+```
+
 ### Release images
 
 ```bash
