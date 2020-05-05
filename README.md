@@ -73,7 +73,7 @@ without passing a `--kubeconfig` parameter. For rapid development the quickest w
 method. This runs the `zabbix-operator/roles/playbook.yml` using your local `python` environment. The other method is 
 using the `operator-sdk` to run it locally, this method is a bit slower and requires a few extra terminals open. 
 
-#### Test operator locally using ansible
+#### Ansible
 
 ```bash
 # Start minikube instance
@@ -95,7 +95,7 @@ $ pip install -r requirements.txt
 $ ansible-playbook zabbix-operator/roles/playbook.yml
 ```
 
-#### Test operator locally using operator-sdk
+#### Operator-sdk
 
 ```bash
 # Start minikube instance
