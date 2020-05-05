@@ -1,4 +1,4 @@
 .idea/
 venvlinux/
-zabbix-create-5.sql
+zabbix-database/zabbix-create-5.sql
 NOTES.md

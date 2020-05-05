@@ -2,6 +2,8 @@ FROM alpine:latest as builder
 # Install local deps
 WORKDIR /opt/build
 RUN apk update && apk add --no-cache curl
+
+# Get the latest link https://www.zabbix.com/download_sources#tab:pre-release
 RUN curl -LO https://cdn.zabbix.com/development/5.0.0beta2/zabbix-5.0.0beta2.tar.gz
 RUN tar -zxvf /opt/build/zabbix-5.0.0beta2.tar.gz
 RUN cat /opt/build/zabbix-5.0.0beta2/database/postgresql/schema.sql /opt/build/zabbix-5.0.0beta2/database/postgresql/data.sql >> /opt/build/zabbix-create-5.sql
