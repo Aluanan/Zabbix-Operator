@@ -2,3 +2,4 @@
 venvlinux/
 zabbix-database/zabbix-create-5.sql
 NOTES.md
+zabbix-operator-chart-*

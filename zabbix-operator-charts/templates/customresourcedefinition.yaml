@@ -1,0 +1,28 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: zabbixes.monitoring.frenchtoastman.com
+  labels:
+    {{- include "zabbix-operator-chart.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  group: monitoring.frenchtoastman.com
+  names:
+    kind: Zabbix
+    listKind: ZabbixList
+    plural: zabbixes
+    singular: zabbix
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      type: object
+      x-kubernetes-preserve-unknown-fields: true
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true

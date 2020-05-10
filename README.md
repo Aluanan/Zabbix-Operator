@@ -32,6 +32,27 @@ base64_postgres_password: emFiYml4 # Base64 encoded string for password
 
 ## Install operator
 
+### Helm
+
+```bash
+# Clone operator project
+$ git clone https://gitlab.com/frenchtoasters/zabbix-operator.git
+
+# Install helm repo
+$ helm repo add zabbix-operator-charts s3://frenchtoasters-zabbix-operator/charts
+
+# Create Namespace
+$ kubectl create ns zabbix
+
+# Install chart
+$ helm install --namespace=zabbix zabbix-operator zabbix-operator-charts/zabbix-operator-chart
+
+# Create custom resource
+$ cd zabbix-operator
+$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+```
+
+### Bash
 ```bash
 # Clone operator project
 $ git clone https://gitlab.com/frenchtoasters/zabbix-operator.git
@@ -139,4 +160,12 @@ $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-data
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/build:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest
+```
+
+### Building Helm chart
+
+```bash
+$ helm repo add zabbix-operator-charts s3://frenchtoasters-zabbix-operator/charts
+$ helm package zabbix-operator-charts/ --version 0.1.X
+$ helm s3 push ./zabbix-operator-chart-0.1.X.tgz zabbix-operator-charts
 ```
