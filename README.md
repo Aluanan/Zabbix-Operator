@@ -4,10 +4,8 @@ This repo contains the code for the `frenchtoastman/zabbix-operator`.
 
 ## Operator Scope
 
-This operator is a `clusterScoped` operator. See more information about operator scope 
+This operator is by default `Namespace` scoped, however it is possible to switch to `Cluster` scoped. See more information about operator scope 
 [here](https://github.com/operator-framework/operator-sdk/blob/master/website/content/en/docs/operator-scope.md).
-
-***Note*** `namespaceScoped` is an option if you are deploying only a single instance per cluster.
 
 ## Operator defaults
 
@@ -42,28 +40,20 @@ $ git clone https://gitlab.com/frenchtoasters/zabbix-operator.git
 $ cd zabbix-operator/zabbix-operator
 
 # Create operator namespace
-$ kubectl create ns operator
+$ kubectl create ns zabbix
 
 # Change diretory to operator
 $ cd zabbix-operator/zabbix-operator
 
-# Create custom resource definition
-$ kubectl create -f deploy/crds/monitoring.frenchtoastman.com_zabbixes_crd.yaml
-
-# Create service account
-$ kubectl create -f deploy/service_account.yaml
-
-# Create role
-$ kubectl create -f deploy/role.yaml
-
-# Create role binding
-$ kubectl create -f deploy/role_binding.yaml
-
-# Deploy operator into cluster
-$ kubectl create -f deploy/operator.yaml
+# Create operator components 
+kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_zabbixes_crd.yaml
+kubectl create -n zabbix -f deploy/service_account.yaml
+kubectl create -n zabbix -f deploy/role.yaml
+kubectl create -n zabbix -f deploy/role_binding.yaml
+kubectl create -n zabbix -f deploy/operator.yaml
 
 # Create example default custom resource
-$ kubectl create -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
 ```
 
 ## Testing 

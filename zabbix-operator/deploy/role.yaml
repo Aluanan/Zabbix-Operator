@@ -1,5 +1,5 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   creationTimestamp: null
   name: zabbix-operator
@@ -15,7 +15,6 @@ rules:
   - events
   - configmaps
   - secrets
-  - namespaces
   verbs:
   - create
   - delete

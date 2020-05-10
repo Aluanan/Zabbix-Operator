@@ -1,7 +1,7 @@
 apiVersion: monitoring.frenchtoastman.com/v1alpha1
 kind: Zabbix
 metadata:
-  name: cluster-zabbix
+  name: full-zabbix
 spec:
   instance: zabbix
   state: present
