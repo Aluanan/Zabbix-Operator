@@ -131,6 +131,10 @@
             tier: database
             release: "{{ release }}"
             domain: "{{ domain }}"
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate:
+            partition: 1
         template:
           metadata:
             labels:
@@ -202,6 +206,11 @@
             tier: server
             release: "{{ release }}"
             domain: "{{ domain }}"
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 30%
+            maxUnavailable: 30%
         template:
           metadata:
             labels:
@@ -266,6 +275,11 @@
             tier: web
             release: "{{ release }}"
             domain: "{{ domain }}"
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 30%
+            maxUnavailable: 30%
         template:
           metadata:
             labels:
