@@ -3,7 +3,6 @@ kind: Zabbix
 metadata:
   name: full-zabbix
 spec:
-  instance: zabbix
   state: present
   release: 0.0.1
   domain: minikube
@@ -27,4 +26,5 @@ spec:
   database_image_pull_policy: IfNotPresent
   database_image_tag: latest
   database_claim_size: 700M
+  database_replicas: 2
   base64_postgres_password: emFiYml4

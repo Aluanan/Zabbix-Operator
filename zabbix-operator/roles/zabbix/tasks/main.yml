@@ -123,7 +123,7 @@
         name: postgres-server
         namespace: "{{ instance }}"
       spec:
-        replicas: 1
+        replicas: "{{ database_replicas }}"
         serviceName:
         selector:
           matchLabels:
@@ -310,3 +310,72 @@
                         key: POSTGRES_PASSWORD
                         name: zabbix-postgres
                         optional: false
+
+- name: Ensure stable repo added
+  helm_repository:
+    repo_name: stable
+    repo_state: "{{ state }}"
+    repo_url: "https://kubernetes-charts.storage.googleapis.com"
+  when: cluster_monitoring
+
+- name: Ensure node exporter installed
+  helm:
+    chart_ref: stable/prometheus-node-exporter
+    release_name: "{{ domain }}"
+    release_state: "{{ state }}"
+    release_namespace: "{{ instance }}"
+  when: cluster_monitoring
+
+- name: Get Server deployment
+  k8s_info:
+    kind: Deployment
+    label_selectors:
+      - app = zabbix
+      - tier = server
+  register: server_deployment
+  when:
+    - cluster_monitoring
+
+- name: Get cluster Nodes
+  k8s_info:
+    kind: Node
+  register: cluster_nodes
+  when:
+    - cluster_monitoring
+
+- name: Run monitoring config job
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        labels:
+          app: zabbix
+          tier: job
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+        name: zabbix-configure-job
+        namespace: "{{ instance }}"
+      spec:
+        template:
+          metadata:
+            name: cluster-config
+          spec:
+            containers:
+              - name: cluster-config-job
+                image: "{{ cluster_config_job_image }}:{{ cluster_config_job_image_tag }}"
+                args:
+                  - "-user"
+                  - "{{ zabbix_frontend_user }}"
+                  - "-passwd"
+                  - "{{ zabbix_frontend_passwd }}"
+                  - "-host"
+                  - "{{ item.metadata.labels['kubernetes.io/hostname'] }}"
+            restartPolicy: OnFailure
+        backoffLimit: 4
+  loop: "{{ cluster_nodes.resources }}"
+  when:
+    - cluster_monitoring
+    - server_deployment.resources[0] is not undefined
+    - server_deployment.resources[0].status.availableReplicas

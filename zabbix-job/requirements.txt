@@ -1,0 +1,2 @@
+pyzabbix>=0.7.5
+kubernetes>=11.0.0

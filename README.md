@@ -49,7 +49,7 @@ $ helm install --namespace=zabbix zabbix-operator zabbix-operator-charts/zabbix-
 
 # Create custom resource
 $ cd zabbix-operator
-$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+$ kubectl create -n zabbix -f examples/example_cr.yml
 ```
 
 ### Bash
@@ -74,7 +74,7 @@ kubectl create -n zabbix -f deploy/role_binding.yaml
 kubectl create -n zabbix -f deploy/operator.yaml
 
 # Create example default custom resource
-$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+$ kubectl create -n zabbix -f examples/example_cr.yml
 ```
 
 ## Testing 
@@ -152,6 +152,9 @@ $ operator-sdk build registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-o
 
 # build zabbix database image
 $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest -f zabbix-database/Dockerfile .
+
+# build zabbix configuration job image
+$ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-job:latest -f zabbix-job/Dockerfile .
 ```
 
 ### Release images
@@ -160,6 +163,7 @@ $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-data
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/build:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest
+$ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-job:latest
 ```
 
 ### Building Helm chart

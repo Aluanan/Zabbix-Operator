@@ -3,7 +3,6 @@ kind: Zabbix
 metadata:
   name: example-zabbix
 spec:
-  instance: zabbix-two
   state: present
   release: 0.0.1
   domain: minikube
