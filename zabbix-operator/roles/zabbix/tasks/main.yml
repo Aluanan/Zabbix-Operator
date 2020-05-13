@@ -337,13 +337,17 @@
   set_fact:
     node_list: "{{ nodes|default([]) + [ item.status.addresses ] }}"
   loop: "{{ cluster_nodes.resources }}"
+  when:
+    - cluster_monitoring
   no_log: true
 
 - name: Set nodes fact
   set_fact:
     nodes: "{{ item.address | default('')  }}"
   loop: "{{ node_list | flatten }}"
-  when: item.type == 'InternalIP'
+  when:
+    - cluster_monitoring
+    - item.type == 'InternalIP'
   no_log: true
 
 - name: Run monitoring config job
