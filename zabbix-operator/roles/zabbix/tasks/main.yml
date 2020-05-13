@@ -343,20 +343,18 @@
   when:
     - cluster_monitoring
 
-- name: Create nodes fact
+- name: Set node_list fact
   set_fact:
-    nodes: "{{ nodes|default([]) + [ item.status.addresses ] }}"
+    node_list: "{{ nodes|default([]) + [ item.status.addresses ] }}"
   loop: "{{ cluster_nodes.resources }}"
   no_log: true
 
-- name: Register hostnames fact
+- name: Set hosts fact
   set_fact:
     hosts: "{{ item.address | default('')  }}"
-  loop: "{{ nodes | flatten }}"
-  when: "{{ item.type == 'InternalIP' }}"
-
-- debug:
-    msg: "{{ hosts }}"
+  loop: "{{ node_list | flatten }}"
+  when: item.type == 'InternalIP'
+  no_log: true
 
 - name: Run monitoring config job
   k8s:
