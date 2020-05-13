@@ -21,4 +21,4 @@ zabbix_frontend_passwd: emFiYml4
 base64_postgres_password: emFiYml4
 cluster_config_job_image: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-job
 cluster_config_job_image_tag: latest
-cluster_monitoring: true
+cluster_monitoring: false
