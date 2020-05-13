@@ -326,16 +326,6 @@
     release_namespace: "{{ instance }}"
   when: cluster_monitoring
 
-- name: Get Server deployment
-  k8s_info:
-    kind: Deployment
-    label_selectors:
-      - app = zabbix
-      - tier = server
-  register: server_deployment
-  when:
-    - cluster_monitoring
-
 - name: Get cluster Nodes
   k8s_info:
     kind: Node
@@ -349,9 +339,9 @@
   loop: "{{ cluster_nodes.resources }}"
   no_log: true
 
-- name: Set hosts fact
+- name: Set nodes fact
   set_fact:
-    hosts: "{{ item.address | default('')  }}"
+    nodes: "{{ item.address | default('')  }}"
   loop: "{{ node_list | flatten }}"
   when: item.type == 'InternalIP'
   no_log: true
@@ -384,7 +374,7 @@
                   - "-passwd"
                   - "{{ zabbix_frontend_passwd }}"
                   - "-nodes"
-                  - "{{ hosts }}"
+                  - "{{ nodes }}"
             restartPolicy: OnFailure
         backoffLimit: 4
   when:
