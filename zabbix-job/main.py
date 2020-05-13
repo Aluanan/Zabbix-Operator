@@ -1,5 +1,4 @@
 from pyzabbix import ZabbixAPI
-from kubernetes import client, config
 import argparse
 import base64
 import logging
@@ -10,17 +9,15 @@ class Monitoring(object):
     def __init__(self, username: str, passwordb64: str, nodes: list):
         password = base64.b64decode(passwordb64)
         self.zapi = ZabbixAPI("http://zabbix-web")
+        logger.debug("Nodes: %s" % nodes)
         try:
             self.zapi.login(user=username, password=password.decode())
         except Exception as e:
             logger.debug("Failure to login: ERROR: %s" % e)
             sys.exit(1)
-        logger.debug("Setting kube context")
-        config.load_kube_config()
-        self.v1 = client.CoreV1Api()
+        self.hosts = nodes
 
     def add_cluster(self):
-        nodes = self._gather_nodes()
         if not self.zapi.hostgroup.get(filter={"name": "Kubernetes-cluster"}):
             logger.debug("Creating hostgroup")
             hostgroup = self.zapi.hostgroup.create(
@@ -32,7 +29,7 @@ class Monitoring(object):
             hostgroup = self.zapi.hostgroup.get(filter={"name": "Kubernetes-cluster"})
             groupid = hostgroup[0].get('groupid')
 
-        for node in nodes:
+        for node in self.hosts:
             if not self.zapi.host.get(filter={"host": node}):
                 logger.debug("Creating host")
                 self.zapi.host.create(
@@ -65,7 +62,7 @@ class Monitoring(object):
             host = self.zapi.host.get(filter={"name": node})
             hostid = host[0].get('hostid')
             logger.debug("Searching for interface")
-            interfaces = self.zapi.hostinterface.get(filter={"name": node})
+            interfaces = self.zapi.hostinterface.get(filter={"host": node})
             interfaceid = 1
             for interface in interfaces:
                 if interface['ip'] == node:
@@ -85,20 +82,12 @@ class Monitoring(object):
                     interfaceid=interfaceid
                 )
 
-    def _gather_nodes(self) -> list:
-        nodes = []
-        logger.debug("Searching for pods")
-        pods = self.v1.list_namespaced_pod(namespace="zabbix")
-        for pod in pods.items:
-            if pod.metadata.labels.get('app') and pod.metadata.labels.get('app') == 'prometheus-node-exporter':
-                nodes.append(pod.status.host_ip)
-        return nodes
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-user", help="Username to connect to zabbix")
     parser.add_argument("-passwd", help="Password for zabbix")
+    parser.add_argument("-nodes", help="Comma string of hostnames")
 
     logger = logging.getLogger()
     handler = logging.StreamHandler()
@@ -109,7 +98,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     logger.debug("Creating Monitoring object")
-    zabbix = Monitoring(username=args.user, passwordb64=args.passwd)
+    hosts = args.nodes.split(',')
+
+    zabbix = Monitoring(username=args.user, passwordb64=args.passwd, nodes=hosts)
     logger.debug("Adding cluster")
     zabbix.add_cluster()
     logger.debug("Cluster monitoring added")

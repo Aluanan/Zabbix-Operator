@@ -343,6 +343,21 @@
   when:
     - cluster_monitoring
 
+- name: Create nodes fact
+  set_fact:
+    nodes: "{{ nodes|default([]) + [ item.status.addresses ] }}"
+  loop: "{{ cluster_nodes.resources }}"
+  no_log: true
+
+- name: Register hostnames fact
+  set_fact:
+    hosts: "{{ item.address | default('')  }}"
+  loop: "{{ nodes | flatten }}"
+  when: "{{ item.type == 'InternalIP' }}"
+
+- debug:
+    msg: "{{ hosts }}"
+
 - name: Run monitoring config job
   k8s:
     state: "{{ state }}"
@@ -370,11 +385,10 @@
                   - "{{ zabbix_frontend_user }}"
                   - "-passwd"
                   - "{{ zabbix_frontend_passwd }}"
-                  - "-host"
-                  - "{{ item.metadata.labels['kubernetes.io/hostname'] }}"
+                  - "-nodes"
+                  - "{{ hosts }}"
             restartPolicy: OnFailure
         backoffLimit: 4
-  loop: "{{ cluster_nodes.resources }}"
   when:
     - cluster_monitoring
     - server_deployment.resources[0] is not undefined
