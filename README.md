@@ -4,8 +4,16 @@ This repo contains the code for the `frenchtoastman/zabbix-operator`.
 
 ## Operator Scope
 
-This operator is by default `Namespace` scoped, however it is possible to switch to `Cluster` scoped. See more information about operator scope 
+
+### v0.1
+For this version of the operator it is `Namespace` scoped. See more information about operator scope 
 [here](https://github.com/operator-framework/operator-sdk/blob/master/website/content/en/docs/operator-scope.md).
+
+### v0.2
+For this version of the operator it is `Cluster` scoped. This is a requirement currently for deploying/gathering the following:
+* `node-expoter` helm package
+* `cluster_nodes` gather information about the cluster nodes themselves
+***NOTE*** still need to explore if this is possible while still being `Namespace` scoped, could move 
 
 ## Operator defaults
 
