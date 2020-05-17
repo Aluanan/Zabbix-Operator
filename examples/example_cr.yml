@@ -18,3 +18,4 @@ spec:
   database_image_tag: latest
   database_claim_size: 700M
   base64_postgres_password: emFiYml4
+  cluster_monitoring: true

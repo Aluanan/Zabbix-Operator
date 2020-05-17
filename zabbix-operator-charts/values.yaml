@@ -3,12 +3,12 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-
+namespace: zabbix
 image:
   repository: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator
   pullPolicy: Always
   # Overrides the image tag whose default is the chart version.
-  tag: "v0.1.18"
+  tag: "v0.2.3"
 
 imagePullSecrets: []
 nameOverride: ""

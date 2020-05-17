@@ -5,7 +5,8 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: zabbix-operator
+  namespace: zabbix
 roleRef:
-  kind: Role
+  kind: ClusterRole
   name: zabbix-operator
   apiGroup: rbac.authorization.k8s.io
