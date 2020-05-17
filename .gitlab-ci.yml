@@ -1,0 +1,29 @@
+stages:
+  - lint
+  - helmdeploy
+
+lint Helm Charts:
+  image:
+    name: linkyard/docker-helm
+    entrypoint: ["/bin/sh", "-c"]
+  stage: lint
+  script:
+    - helm lint charts/*
+
+pages:
+  image:
+    name: linkyard/docker-helm
+    entrypoint: ["/bin/sh", "-c"]
+  stage: helmdeploy
+  script:
+    - helm init --client-only
+    - mkdir -p ./public
+    - "echo \"User-Agent: *\nDisallow: /\" > ./public/robots.txt"
+    - helm package charts/* --destination ./public
+    - helm repo index --url https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME} .
+    - mv index.yaml ./public
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
