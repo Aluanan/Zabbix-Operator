@@ -19,7 +19,8 @@ pages:
     - helm init --client-only
     - mkdir -p ./public
     - "echo \"User-Agent: *\nDisallow: /\" > ./public/robots.txt"
-    - helm package charts/* --destination ./public
+    - "export CHARTVERSION=$(cat charts/zabbix-operator-chart/Chart.yaml  | grep version: | awk '{print $2}')"
+    - helm package charts/zabbix-operator-chart/ --destination ./public --version ${CHARTVERSION}
     - helm repo index --url https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME} .
     - mv index.yaml ./public
   artifacts:
