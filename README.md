@@ -177,7 +177,7 @@ $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-j
 ### Building Helm chart
 
 ```bash
-$ helm repo add zabbix-operator-charts s3://frenchtoasters-zabbix-operator/charts
+$ helm repo add zabbix-operator-charts https://frenchtoasters.gitlab.io/zabbix-operator
 $ helm package zabbix-operator-charts/ --version 0.1.X
 $ helm s3 push ./zabbix-operator-chart-0.1.X.tgz zabbix-operator-charts
 ```
