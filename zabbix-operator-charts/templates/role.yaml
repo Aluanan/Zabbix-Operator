@@ -22,7 +22,6 @@ rules:
   - configmaps
   - secrets
   - serviceaccounts
-  - nodes
   verbs:
   - create
   - delete
@@ -65,7 +64,9 @@ rules:
   - ""
   resources:
   - pods
+  - nodes
   verbs:
+  - list
   - get
 - apiGroups:
   - apps

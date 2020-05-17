@@ -15,8 +15,7 @@ rules:
   - events
   - configmaps
   - secrets
-  - serviceaccounts # added: list
-  - clusterroles # added: list
+  - serviceaccounts
   verbs:
   - create
   - delete
@@ -59,7 +58,9 @@ rules:
   - ""
   resources:
   - pods
+  - nodes
   verbs:
+  - list
   - get
 - apiGroups:
   - apps
@@ -85,6 +86,32 @@ rules:
   resources:
   - podsecuritypolicies
   verbs:
+  - create
   - get
   - list
   - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - use
+  - create
+  - get
+  - list
+- apiGroups:
+  - extensions
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - patch
+  - list
+  - get
+  - create
