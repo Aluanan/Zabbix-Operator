@@ -1,0 +1,58 @@
+---
+- name: Get Database Info
+  k8s_info:
+    kind: StatefulSet
+    namespace: "{{ instance }}"
+    label_selectors:
+      - app = postgres
+      - tier = database
+  register: database_set
+  when:
+    - database_monitoring
+
+- name: Get Server Info
+  k8s_info:
+    kind: Deployment
+    namespace: "{{ instance }}"
+    label_selectors:
+      - app = zabbix
+      - tier = web
+  register: server_deployment
+  when:
+    - database_monitoring
+
+- name: Run database monitoring config job
+  k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        labels:
+          app: zabbix
+          tier: job
+          release: "{{ release }}"
+          domain: "{{ domain }}"
+        name: zabbix-database-monitoring-job
+        namespace: "{{ instance }}"
+      spec:
+        template:
+          metadata:
+            name: database-config
+          spec:
+            containers:
+              - name: database-config-job
+                image: "{{ cluster_config_job_image }}:{{ cluster_config_job_image_tag }}"
+                args:
+                  - "-user"
+                  - "{{ zabbix_frontend_user }}"
+                  - "-passwd"
+                  - "{{ zabbix_frontend_passwd }}"
+                  - "-nodes"
+                  - "postgres-server"
+            restartPolicy: OnFailure
+        backoffLimit: 4
+  when:
+    - database_monitoring
+    - server_deployment.resources[0] is not undefined
+    - server_deployment.resources[0].status.availableReplicas

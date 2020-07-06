@@ -39,6 +39,14 @@
           release: "{{ release }}"
           domain: "{{ domain }}"
         ports:
+          - targetPort: 10051
+            name: active
+            port: 10051
+            protocol: TCP
+          - targetPort: 10050
+            name: agent-passive
+            port: 10050
+            protocol: TCP
           - targetPort: 5432
             name: database
             port: 5432
@@ -144,6 +152,19 @@
               domain: "{{ domain }}"
           spec:
             containers:
+              - name: zabbix-agent
+                image: "{{ custom_agent_image | default(zabbix_agent_image) }}:{{ custom_agent_image_tag | default(zabbix_tag) }}"
+                imagePullPolicy: "{{ zabbix_agent_image_pull_policy | default(image_pull_policy) }}"
+                env:
+                  - name: ZBX_SERVER_HOST
+                    value: zabbix-server
+                ports:
+                  - containerPort: 10051
+                    name: agent-active
+                    protocol: TCP
+                  - containerPort: 10050
+                    name: agent-passive
+                    protocol: TCP
               - name: postgres-server
                 imagePullPolicy: "{{ database_image_pull_policy | default(image_pull_policy) }}"
                 image: "{{ database_image }}:{{ database_image_tag }}"
@@ -311,86 +332,10 @@
                         name: zabbix-postgres
                         optional: false
 
-- name: Ensure stable repo added
-  helm_repository:
-    repo_name: stable
-    repo_state: "{{ state }}"
-    repo_url: "https://kubernetes-charts.storage.googleapis.com"
-  when: cluster_monitoring
-
-- name: Ensure node exporter installed
-  helm:
-    chart_ref: stable/prometheus-node-exporter
-    release_name: "{{ domain }}"
-    release_state: "{{ state }}"
-    release_namespace: "{{ instance }}"
-  when: cluster_monitoring
-
-- name: Get cluster Nodes
-  k8s_info:
-    kind: Node
-  register: cluster_nodes
+- import_tasks: cluster_monitoring.yml
   when:
     - cluster_monitoring
 
-- name: Get Server Info
-  k8s_info:
-    kind: Deployment
-    namespace: "{{ instance }}"
-    label_selectors:
-      - app = zabbix
-      - tier = web
-  register: server_deployment
+- import_tasks: database_monitoring.yml
   when:
-    - cluster_monitoring
-
-- name: Set node_list fact
-  set_fact:
-    node_list: "{{ nodes|default([]) + [ item.status.addresses ] }}"
-  loop: "{{ cluster_nodes.resources }}"
-  when:
-    - cluster_monitoring
-
-- name: Set nodes fact
-  set_fact:
-    nodes: "{{ item.address | default('')  }}"
-  loop: "{{ node_list | flatten }}"
-  when:
-    - cluster_monitoring
-    - item.type == 'InternalIP'
-
-- name: Run monitoring config job
-  k8s:
-    state: "{{ state }}"
-    definition:
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        labels:
-          app: zabbix
-          tier: job
-          release: "{{ release }}"
-          domain: "{{ domain }}"
-        name: zabbix-configure-job
-        namespace: "{{ instance }}"
-      spec:
-        template:
-          metadata:
-            name: cluster-config
-          spec:
-            containers:
-              - name: cluster-config-job
-                image: "{{ cluster_config_job_image }}:{{ cluster_config_job_image_tag }}"
-                args:
-                  - "-user"
-                  - "{{ zabbix_frontend_user }}"
-                  - "-passwd"
-                  - "{{ zabbix_frontend_passwd }}"
-                  - "-nodes"
-                  - "{{ nodes }}"
-            restartPolicy: OnFailure
-        backoffLimit: 4
-  when:
-    - cluster_monitoring
-    - server_deployment.resources[0] is not undefined
-    - server_deployment.resources[0].status.availableReplicas
+    - database_monitoring

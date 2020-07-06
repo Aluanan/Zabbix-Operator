@@ -1,6 +1,9 @@
 stages:
   - lint
   - helmdeploy
+  - create
+  - update
+  - delete
 
 lint Helm Charts:
   image:
@@ -28,3 +31,85 @@ pages:
       - public
   only:
     - clusterconfig
+
+GenesisCreate:
+  image:
+    name: registry.gitlab.com/frenchtoasters/zabbix-operator/build
+    entrypoint: ["/bin/bash", "-c"]
+  stage: create
+  before_script:
+    - mkdir ~/.kube
+    - touch ~/.kube/config
+    - echo ${KUBE_CONFIG} | base64 --decode > ~/.kube/config
+    - touch ~/crd_${INSTANCE}.yml
+    - echo ${CRD_BASE64} | base64 --decode > ~/crd_${INSTANCE}.yml
+  script:
+    - helm repo add zabbix-operator-charts s3://frenchtoasters-zabbix-operator/charts
+    - kubectl create ns zabbix
+    - helm install --namespace=zabbix zabbix-operator zabbix-operator-charts/zabbix-operator-chart
+    - kubectl apply -n zabbix -f ~/crd_${INSTANCE}.yml
+  artifacts:
+    paths:
+      - ~/crd_${INSTANCE}.yml
+  only:
+    variables:
+      - $TASK == "genesis"
+
+CreateInstance:
+  image:
+    name: registry.gitlab.com/frenchtoasters/zabbix-operator/build
+    entrypoint: ["/bin/bash", "-c"]
+  stage: create
+  before_script:
+    - mkdir ~/.kube
+    - touch ~/.kube/config
+    - echo ${KUBE_CONFIG} | base64 --decode > ~/.kube/config
+    - touch ~/crd_${INSTANCE}.yml
+    - echo ${CRD_BASE64} | base64 --decode > ~/crd_${INSTANCE}.yml
+  script:
+    - kubectl apply -n zabbix -f ~/crd_${INSTANCE}.yml
+  artifacts:
+    paths:
+      - ~/crd_${INSTANCE}.yml
+  only:
+    variables:
+      - $TASK == "create_instance"
+
+UpdateInstance:
+  image:
+    name: registry.gitlab.com/frenchtoasters/zabbix-operator/build
+    entrypoint: ["/bin/bash", "-c"]
+  stage: update
+  before_script:
+    - mkdir ~/.kube
+    - touch ~/.kube/config
+    - echo ${KUBE_CONFIG} | base64 --decode > ~/.kube/config
+    - touch ~/crd_${INSTANCE}.yml
+    - echo ${CRD_BASE64} | base64 --decode > ~/crd_${INSTANCE}.yml
+  script:
+    - yq w ~/crd_${INSTANCE}.yml spec.zabbix_tag ${NEW_ZABBIX_TAG} > ~/crd_${INSTANCE}.yml
+    - kubectl apply -n zabbix -f ~/crd_${INSTANCE}.yml
+  artifacts:
+    paths:
+      - ~/crd_${INSTANCE}.yml
+  only:
+    variables:
+      - $TASK == "update_instance"
+
+DeleteInstance:
+  image:
+    name: registry.gitlab.com/frenchtoasters/zabbix-operator/build
+    entrypoint: ["/bin/bash", "-c"]
+  stage: create
+  before_script:
+    - mkdir ~/.kube
+    - touch ~/.kube/config
+    - echo ${KUBE_CONFIG} | base64 --decode > ~/.kube/config
+    - touch ~/crd_${INSTANCE}.yml
+    - echo ${CRD_BASE64} | base64 --decode > ~/crd_${INSTANCE}.yml
+  script:
+    - kubectl delete -n zabbix -f ~/crd_${INSTANCE}.yml
+  only:
+    variables:
+      - $TASK == "delete_instance"
+      - $APPROVED == "true"
