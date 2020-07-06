@@ -39,6 +39,14 @@
           release: "{{ release }}"
           domain: "{{ domain }}"
         ports:
+          - targetPort: 10051
+            name: active
+            port: 10051
+            protocol: TCP
+          - targetPort: 10050
+            name: agent-passive
+            port: 10050
+            protocol: TCP
           - targetPort: 5432
             name: database
             port: 5432
@@ -123,7 +131,7 @@
         name: postgres-server
         namespace: "{{ instance }}"
       spec:
-        replicas: 1
+        replicas: "{{ database_replicas }}"
         serviceName:
         selector:
           matchLabels:
@@ -144,6 +152,19 @@
               domain: "{{ domain }}"
           spec:
             containers:
+              - name: zabbix-agent
+                image: "{{ custom_agent_image | default(zabbix_agent_image) }}:{{ custom_agent_image_tag | default(zabbix_tag) }}"
+                imagePullPolicy: "{{ zabbix_agent_image_pull_policy | default(image_pull_policy) }}"
+                env:
+                  - name: ZBX_SERVER_HOST
+                    value: zabbix-server
+                ports:
+                  - containerPort: 10051
+                    name: agent-active
+                    protocol: TCP
+                  - containerPort: 10050
+                    name: agent-passive
+                    protocol: TCP
               - name: postgres-server
                 imagePullPolicy: "{{ database_image_pull_policy | default(image_pull_policy) }}"
                 image: "{{ database_image }}:{{ database_image_tag }}"
@@ -310,3 +331,11 @@
                         key: POSTGRES_PASSWORD
                         name: zabbix-postgres
                         optional: false
+
+- import_tasks: cluster_monitoring.yml
+  when:
+    - cluster_monitoring
+
+- import_tasks: database_monitoring.yml
+  when:
+    - database_monitoring

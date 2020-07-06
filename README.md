@@ -4,8 +4,16 @@ This repo contains the code for the `frenchtoastman/zabbix-operator`.
 
 ## Operator Scope
 
-This operator is by default `Namespace` scoped, however it is possible to switch to `Cluster` scoped. See more information about operator scope 
+
+### v0.1
+For this version of the operator it is `Namespace` scoped. See more information about operator scope 
 [here](https://github.com/operator-framework/operator-sdk/blob/master/website/content/en/docs/operator-scope.md).
+
+### v0.2
+For this version of the operator it is `Cluster` scoped. This is a requirement currently for deploying/gathering the following:
+* `node-expoter` helm package
+* `cluster_nodes` gather information about the cluster nodes themselves
+***NOTE*** still need to explore if this is possible while still being `Namespace` scoped, could move 
 
 ## Operator defaults
 
@@ -49,7 +57,7 @@ $ helm install --namespace=zabbix zabbix-operator zabbix-operator-charts/zabbix-
 
 # Create custom resource
 $ cd zabbix-operator
-$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+$ kubectl create -n zabbix -f examples/example_cr.yml
 ```
 
 ### Bash
@@ -74,7 +82,7 @@ kubectl create -n zabbix -f deploy/role_binding.yaml
 kubectl create -n zabbix -f deploy/operator.yaml
 
 # Create example default custom resource
-$ kubectl create -n zabbix -f deploy/crds/monitoring.frenchtoastman.com_v1alpha1_zabbix_cr.yaml
+$ kubectl create -n zabbix -f examples/example_cr.yml
 ```
 
 ## Testing 
@@ -152,6 +160,9 @@ $ operator-sdk build registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-o
 
 # build zabbix database image
 $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest -f zabbix-database/Dockerfile .
+
+# build zabbix configuration job image
+$ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-job:latest -f zabbix-job/Dockerfile .
 ```
 
 ### Release images
@@ -160,6 +171,7 @@ $ docker build -t registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-data
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/build:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-operator:latest
 $ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres:latest
+$ docker push registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-config-job:latest
 ```
 
 ### Building Helm chart

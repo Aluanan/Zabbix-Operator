@@ -1,5 +1,5 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   creationTimestamp: null
   name: zabbix-operator
@@ -15,6 +15,7 @@ rules:
   - events
   - configmaps
   - secrets
+  - serviceaccounts
   verbs:
   - create
   - delete
@@ -57,7 +58,9 @@ rules:
   - ""
   resources:
   - pods
+  - nodes
   verbs:
+  - list
   - get
 - apiGroups:
   - apps
@@ -78,3 +81,37 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - use
+  - create
+  - get
+  - list
+- apiGroups:
+  - extensions
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - patch
+  - list
+  - get
+  - create

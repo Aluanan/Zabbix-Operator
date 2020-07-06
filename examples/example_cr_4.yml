@@ -13,10 +13,10 @@ spec:
   zabbix_snmp_image: zabbix/zabbix-snmptraps
   zabbix_agent_image: zabbix/zabbix-agent
   zabbix_web_image: zabbix/zabbix-web-nginx-pgsql
-  zabbix_tag: alpine-trunk
+  zabbix_tag: alpine-4.0-latest
   image_pull_policy: IfNotPresent
   database_image: registry.gitlab.com/frenchtoasters/zabbix-operator/zabbix-database-postgres
-  database_image_tag: latest
+  database_image_tag: 4
   database_claim_size: 700M
   base64_postgres_password: emFiYml4
   cluster_monitoring: true

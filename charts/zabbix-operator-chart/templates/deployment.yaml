@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "zabbix-operator-chart.fullname" . }}
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "zabbix-operator-chart.labels" . | nindent 4 }}
 spec:
@@ -38,9 +39,7 @@ spec:
             name: runner
           env:
             - name: WATCH_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+              value: ""
             - name: POD_NAME
               valueFrom:
                 fieldRef:
