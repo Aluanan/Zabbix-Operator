@@ -1,0 +1,245 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: var-lib-zabbix-postgres
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "zabbix-operator-chart.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  pgsql.bgwriter.sql: |
+    SELECT row_to_json(T)\nFROM\n\t(SELECT checkpoints_timed,\n\t\t\tcheckpoints_req,\n\t\t\tcheckpoint_write_time,\n\t\t\tcheckpoint_sync_time,\n\t\t\tcurrent_setting('block_size')::int*buffers_checkpoint
+    AS buffers_checkpoint,\n\t\t\tcurrent_setting('block_size')::int*buffers_clean
+    AS buffers_clean,\n\t\t\tmaxwritten_clean,\n\t\t\tcurrent_setting('block_size')::int*buffers_backend
+    AS buffers_backend,\n\t\t\tbuffers_backend_fsync,\n\t\t\tcurrent_setting('block_size')::int*buffers_alloc
+    AS buffers_alloc\n\tFROM pg_stat_bgwriter) T\n
+  pgsql.cache.hit.sql: |
+    SELECT round(sum(blks_hit)*100/sum(blks_hit+blks_read), 2)
+    FROM pg_stat_database
+  pgsql.config.hash.sql: |
+    SELECT md5(\n\tjson_build_object(\n\t\t'extensions', (\n\t\t\tSELECT
+    array_agg(extname) FROM (\n\t\t\t\tSELECT extname\n\t\t\t\tFROM pg_extension\n\t\t\t\tORDER
+    BY extname\n\t\t\t) AS e\n\t\t),\n\t\t'settings', (\n\t\t\tSELECT json_object(array_agg(name),
+    array_agg(setting)) FROM (\n\t\t\t\tSELECT name, setting\n\t\t\t\tFROM pg_settings\n\t\t\t\tWHERE
+    name != 'application_name'\n\t\t\t\tORDER BY name\n\t\t\t) AS s\n\t\t)\n\t)::text);\n
+  pgsql.connections.prepared.sql: |
+    SELECT count(*)
+    FROM pg_prepared_xacts
+  pgsql.connections.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres text;\n\nBEGIN\n\tSELECT
+    current_setting('server_version_num') INTO ver;\n\n\tIF (ver >= 90600) THEN\n\t\tSELECT
+    json_object_agg(datname, row_to_json(T)) INTO res from (\n\t\t\tSELECT\n\t\t\t\tdatname,\n\t\t\t\tsum(CASE
+    WHEN state = 'active' THEN 1 ELSE 0 END) AS active,\n\t\t\t\tsum(CASE WHEN state
+    = 'idle' THEN 1 ELSE 0 END) AS idle,\n\t\t\t\tsum(CASE WHEN state = 'idle in transaction'
+    THEN 1 ELSE 0 END) AS idle_in_transaction,\n\t\t\t\tcount(*) AS total,\n\t\t\t\tcount(*)*100/(SELECT
+    current_setting('max_connections')::int) AS total_pct,\n\t\t\t\tsum(CASE WHEN
+    wait_event IS NOT NULL THEN 1 ELSE 0 END) AS waiting\n\t\t\tFROM pg_stat_activity
+    WHERE datid is not NULL GROUP BY datname ) T;\n\n\t\tELSE\n\t\t\tSELECT json_object_agg(datname,
+    row_to_json(T)) INTO res from (\n\t\t\t\tSELECT\n\t\t\t\t\tdatname,\n\t\t\t\t\tsum(CASE
+    WHEN state = 'active' THEN 1 ELSE 0 END) AS active,\n\t\t\t\t\tsum(CASE WHEN state
+    = 'idle' THEN 1 ELSE 0 END) AS idle,\n\t\t\t\t\tsum(CASE WHEN state = 'idle in
+    transaction' THEN 1 ELSE 0 END) AS idle_in_transaction,\n\t\t\t\t\tcount(*) AS
+    total,\n\t\t\t\t\tcount(*)*100/(SELECT current_setting('max_connections')::int)
+    AS total_pct,\n\t\t\t\t\tsum(CASE WHEN waiting IS TRUE THEN 1 ELSE 0 END) AS waiting\n\t\t\t\tFROM
+    pg_stat_activity GROUP BY datname ) T;\n\t\tEND IF;\n\n\tperform set_config('zbx_tmp.db_conn_json_res',
+    res, false);\n\nEND $$;\n\nSELECT current_setting('zbx_tmp.db_conn_json_res');\n
+  pgsql.connections.sum.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres
+    text;\nBEGIN\n\tSELECT current_setting('server_version_num') INTO ver;\n\n\tIF
+    (ver >= 90600) THEN\n\t\tSELECT row_to_json(T) INTO res from (\n\t\t\tSELECT\n\t\t\t\tsum(CASE
+    WHEN state = 'active' THEN 1 ELSE 0 END) AS active,\n\t\t\t\tsum(CASE WHEN state
+    = 'idle' THEN 1 ELSE 0 END) AS idle,\n\t\t\t\tsum(CASE WHEN state = 'idle in transaction'
+    THEN 1 ELSE 0 END) AS idle_in_transaction,\n\t\t\t\tcount(*) AS total,\n\t\t\t\tcount(*)*100/(SELECT
+    current_setting('max_connections')::int) AS total_pct,\n\t\t\t\tsum(CASE WHEN
+    wait_event IS NOT NULL THEN 1 ELSE 0 END) AS waiting,\n\t\t\t\t(SELECT count(*)
+    FROM pg_prepared_xacts) AS prepared\n\t\t\tFROM pg_stat_activity WHERE datid is
+    not NULL\n\t\t\t) T;\n\n\tELSE\n\t\tSELECT row_to_json(T) INTO res from (\n\t\t\tSELECT\n\t\t\t\tsum(CASE
+    WHEN state = 'active' THEN 1 ELSE 0 END) AS active,\n\t\t\t\tsum(CASE WHEN state
+    = 'idle' THEN 1 ELSE 0 END) AS idle,\n\t\t\t\tsum(CASE WHEN state = 'idle in transaction'
+    THEN 1 ELSE 0 END) AS idle_in_transaction,\n\t\t\t\tcount(*) AS total,\n\t\t\t\tcount(*)*100/(SELECT
+    current_setting('max_connections')::int) AS total_pct,\n\t\t\t\tsum(CASE WHEN
+    waiting IS TRUE THEN 1 ELSE 0 END) AS waiting,\n\t\t\t\t(SELECT count(*) FROM
+    pg_prepared_xacts) AS prepared\n\t\t\tFROM pg_stat_activity\n\t\t\t) T;\n\tEND
+    IF;\n\n\tperform set_config('zbx_tmp.conn_json_res', res, false);\nEND $$;\n\nselect
+    current_setting('zbx_tmp.conn_json_res');\n
+  pgsql.dbstat.sql: |
+    SELECT json_object_agg(datname, row_to_json(T)) FROM (\n\tSELECT
+    datname,\n\t\t\tnumbackends,\n\t\t\txact_commit,\n\t\t\txact_rollback,\n\t\t\tblks_read,\n\t\t\tblks_hit,\n\t\t\ttup_returned,\n\t\t\ttup_fetched,\n\t\t\ttup_inserted,\n\t\t\ttup_updated,\n\t\t\ttup_deleted,\n\t\t\tconflicts,\n\t\t\ttemp_files,\n\t\t\ttemp_bytes,\n\t\t\tdeadlocks\n\tFROM
+    pg_stat_database) T\n
+  pgsql.dbstat.sum.sql: |
+    SELECT row_to_json(T) from (\n\tSELECT sum(numbackends) AS
+    numbackends,\n\t\t\tsum(xact_commit) AS xact_commit,\n\t\t\tsum(xact_rollback)
+    AS xact_rollback,\n\t\t\tsum(blks_read) AS blks_read,\n\t\t\tsum(blks_hit) AS
+    blks_hit,\n\t\t\tsum(tup_returned) AS tup_returned,\n\t\t\tsum(tup_fetched) AS
+    tup_fetched,\n\t\t\tsum(tup_inserted) AS tup_inserted,\n\t\t\tsum(tup_updated)
+    AS tup_updated,\n\t\t\tsum(tup_deleted) AS tup_deleted,\n\t\t\tsum(conflicts)
+    AS conflicts,\n\t\t\tsum(temp_files) AS temp_files,\n\t\t\tsum(temp_bytes) AS
+    temp_bytes,\n\t\t\tsum(deadlocks) AS deadlocks\n\tFROM pg_stat_database) T\n
+  pgsql.discovery.db.sql: |
+    WITH T AS (\n\tSELECT\n\t\tdatname AS \"{#DBNAME}\"\n\tFROM
+    pg_database\n\tWHERE\n\t\tNOT datistemplate\n\t\tAND datname != 'postgres'\n)\nSELECT
+    '{\"data\":'|| regexp_replace(coalesce(json_agg(T), '[]'::json)::text, E'[\\\\n\\\\r\\\\s]+',
+    '', 'g') || '}'\nFROM T\n
+  pgsql.frozenxid.sql: |
+    WITH T AS (\n\tSELECT\n\t\tage(relfrozenxid),\n\t\tcurrent_setting('autovacuum_freeze_max_age')::integer
+    fma\n\tFROM pg_class\n\tWHERE relkind IN ('r', 't'))\nSELECT row_to_json(T2)\nFROM
+    (\n\tSELECT extract(epoch FROM now())::integer ts,\n\t(\n\t\tSELECT ((1 - max(age)::double
+    precision / current_setting('autovacuum_freeze_max_age')::integer) * 100)::numeric(9,6)\n\t\tFROM
+    T\n\t\tWHERE age < fma\n\t) prc_before_av,\n\t(\n\t\tSELECT ((1 - max(age)::double
+    precision / -((1 << 31) + 1)) * 100)::numeric(9,6)\n\t\tFROM T\n\t) prc_before_stop\n)
+    T2\n
+  pgsql.locks.sql: |
+    WITH T AS\n\t(SELECT db.datname dbname,\n\t\t\tlower(replace(Q.mode,
+    'Lock', '')) AS MODE,\n\t\t\tcoalesce(T.qty, 0) val\n\tFROM pg_database db\n\tJOIN
+    (\n\t\t\tVALUES ('AccessShareLock') ,('RowShareLock') ,('RowExclusiveLock') ,('ShareUpdateExclusiveLock')
+    ,('ShareLock') ,('ShareRowExclusiveLock') ,('ExclusiveLock') ,('AccessExclusiveLock'))
+    Q(MODE) ON TRUE NATURAL\n\tLEFT JOIN\n\t\t(SELECT datname,\n\t\t\tMODE,\n\t\t\tcount(MODE)
+    qty\n\t\tFROM pg_locks lc\n\t\tRIGHT JOIN pg_database db ON db.oid = lc.database\n\t\tGROUP
+    BY 1, 2) T\n\tWHERE NOT db.datistemplate\n\tORDER BY 1, 2)\nSELECT json_object_agg(dbname,
+    row_to_json(T2))\nFROM\n\t(SELECT dbname,\n\t\t\tsum(val) AS total,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'accessexclusive' THEN val\n\t\t\t\tEND) AS accessexclusive,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'accessshare' THEN val\n\t\t\t\tEND) AS accessshare,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'exclusive' THEN val\n\t\t\t\tEND) AS EXCLUSIVE,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'rowexclusive' THEN val\n\t\t\t\tEND) AS rowexclusive,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'rowshare' THEN val\n\t\t\t\tEND) AS rowshare,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'share' THEN val\n\t\t\t\tEND) AS SHARE,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'sharerowexclusive' THEN val\n\t\t\t\tEND) AS sharerowexclusive,\n\t\t\tsum(CASE\n\t\t\t\t\tWHEN
+    MODE = 'shareupdateexclusive' THEN val\n\t\t\t\tEND) AS shareupdateexclusive\n\tFROM
+    T\n\tGROUP BY dbname) T2\n
+  pgsql.ping.time.sql: |
+    \timing
+    SELECT 1;
+  pgsql.query.time.sql: |
+    WITH T AS\n\t(SELECT db.datname,\n\t\t\tcoalesce(T.query_time_max,
+    0) query_time_max,\n\t\t\tcoalesce(T.tx_time_max, 0) tx_time_max,\n\t\t\tcoalesce(T.mro_time_max,
+    0) mro_time_max,\n\t\t\tcoalesce(T.query_time_sum, 0) query_time_sum,\n\t\t\tcoalesce(T.tx_time_sum,
+    0) tx_time_sum,\n\t\t\tcoalesce(T.mro_time_sum, 0) mro_time_sum,\n\t\t\tcoalesce(T.query_slow_count,
+    0) query_slow_count,\n\t\t\tcoalesce(T.tx_slow_count, 0) tx_slow_count,\n\t\t\tcoalesce(T.mro_slow_count,
+    0) mro_slow_count\n\tFROM pg_database db NATURAL\n\tLEFT JOIN (\n\t\tSELECT datname,\n\t\t\textract(epoch
+    FROM now())::integer ts,\n\t\t\tcoalesce(max(extract('epoch' FROM (clock_timestamp()
+    - query_start))::integer * (state NOT IN ('idle', 'idle in transaction', 'idle
+    in transaction (aborted)') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) query_time_max,\n\t\t\tcoalesce(max(extract('epoch' FROM (clock_timestamp()
+    - query_start))::integer * (state NOT IN ('idle') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) tx_time_max,\n\t\t\tcoalesce(max(extract('epoch' FROM (clock_timestamp() -
+    query_start))::integer * (state NOT IN ('idle') AND query ~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) mro_time_max,\n\t\t\tcoalesce(sum(extract('epoch' FROM (clock_timestamp() -
+    query_start))::integer * (state NOT IN ('idle', 'idle in transaction', 'idle in
+    transaction (aborted)') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) query_time_sum,\n\t\t\tcoalesce(sum(extract('epoch' FROM (clock_timestamp()
+    - query_start))::integer * (state NOT IN ('idle') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) tx_time_sum,\n\t\t\tcoalesce(sum(extract('epoch' FROM (clock_timestamp() -
+    query_start))::integer * (state NOT IN ('idle') AND query ~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) mro_time_sum,\n\n\t\t\tcoalesce(sum((extract('epoch' FROM (clock_timestamp()
+    - query_start)) > :tmax)::integer * (state NOT IN ('idle', 'idle in transaction',
+    'idle in transaction (aborted)') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) query_slow_count,\n\t\t\tcoalesce(sum((extract('epoch' FROM (clock_timestamp()
+    - query_start)) > :tmax)::integer * (state NOT IN ('idle') AND query !~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) tx_slow_count,\n\t\t\tcoalesce(sum((extract('epoch' FROM (clock_timestamp()
+    - query_start)) > :tmax)::integer * (state NOT IN ('idle') AND query ~* E'^(\\\\s*(--[^\\\\n]*\\\\n|/\\\\*.*\\\\*/|\\\\n))*(autovacuum|VACUUM|ANALYZE|REINDEX|CLUSTER|CREATE|ALTER|TRUNCATE|DROP)')::integer),
+    0) mro_slow_count\n\t\tFROM pg_stat_activity\n\t\tWHERE pid <> pg_backend_pid()\n\t\tGROUP
+    BY 1) T\n\tWHERE NOT db.datistemplate )\nSELECT json_object_agg(datname, row_to_json(T))\nFROM
+    T\n
+  pgsql.replication.lag.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres
+    text;\nBEGIN\n\tSELECT current_setting('server_version_num') INTO ver;\n\n\tIF
+    (ver >= 100000) THEN\n\t\tSELECT * INTO res from (\n\t\t\tSELECT\n\t\t\t\tCASE
+    WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn()\n\t\t\t\t\tTHEN 0\n\t\t\t\t\tELSE
+    COALESCE(EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp())::integer,
+    0)\n\t\t\t\tEND\n\t\t\t) T;\n\n\tELSE\n\t\tSELECT * INTO res from (\n\t\t\tSELECT\n\t\t\t\tCASE
+    WHEN pg_last_xlog_receive_location() = pg_last_xlog_replay_location()\n\t\t\t\t\tTHEN
+    0\n\t\t\t\t\tELSE COALESCE(EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp())::integer,
+    0)\n\t\t\t\tEND\n\t\t\t) T;\n\tEND IF;\n\n\tperform set_config('zbx_tmp.repl_lag_res',
+    res, false);\nEND $$;\n\nselect current_setting('zbx_tmp.repl_lag_res');\n
+  pgsql.replication.recovery_role.sql: |
+    SELECT pg_is_in_recovery()::int
+  pgsql.replication.status.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres
+    text := 2;\nBEGIN\n\tSELECT current_setting('server_version_num') INTO ver;\n\n\tIF
+    (SELECT pg_is_in_recovery()) THEN\n\t\tIF (ver >= 90600) THEN\n\t\t\tSELECT *
+    INTO res from (\n\t\t\t\tSELECT COUNT(*) FROM pg_stat_wal_receiver\n\t\t\t\t)
+    T;\n\t\tELSE\n\t\t\tres := 'ZBX_NOTSUPPORTED: Requires PostgreSQL version 9.6
+    or higher';\n\t\tEND IF;\n\tEND IF;\n\n\tperform set_config('zbx_tmp.repl_status_res',
+    res, false);\nEND $$;\n\nSELECT current_setting('zbx_tmp.repl_status_res');\n
+  pgsql.scans.sql: |
+    WITH T AS (\n\tSELECT\n\t\tsum(CASE WHEN relkind IN ('r', 't',
+    'm') THEN pg_stat_get_numscans(oid) END) seq,\n\t\tsum(CASE WHEN relkind = 'i'
+    THEN pg_stat_get_numscans(oid) END) idx\n\tFROM pg_class\n\tWHERE relkind IN ('r',
+    't', 'm', 'i')\n)\nSELECT row_to_json(T)\nFROM T\n
+  pgsql.transactions.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres
+    text;\nBEGIN\n\tSELECT current_setting('server_version_num') INTO ver;\n\n\tIF
+    (ver >= 90600) THEN\n\t\tSELECT row_to_json(T) INTO res from (\n\t\t\tSELECT\n\t\t\t\tcoalesce(extract(epoch
+    FROM max(CASE WHEN state = 'idle in transaction' THEN age(now(), query_start)
+    END)), 0) AS idle,\n\t\t\t\tcoalesce(extract(epoch FROM max(CASE WHEN state <>
+    'idle in transaction' AND state <> 'idle' THEN age(now(), query_start) END)),
+    0) AS active,\n\t\t\t\tcoalesce(extract(epoch FROM max(CASE WHEN wait_event IS
+    NOT NULL THEN age(now(), query_start) END)), 0) AS waiting,\n\t\t\t\t(SELECT coalesce(extract(epoch
+    FROM max(age(now(), prepared))), 0) FROM pg_prepared_xacts) AS prepared\n\t\t\tFROM
+    pg_stat_activity) T;\n\n\tELSE\n\t\tSELECT row_to_json(T) INTO res from (\n\t\t\tSELECT\n\t\t\t\tcoalesce(extract(epoch
+    FROM max(CASE WHEN state = 'idle in transaction' THEN age(now(), query_start)
+    END)), 0) AS idle,\n\t\t\t\tcoalesce(extract(epoch FROM max(CASE WHEN state <>
+    'idle in transaction' AND state <> 'idle' THEN age(now(), query_start) END)),
+    0) AS active,\n\t\t\t\tcoalesce(extract(epoch FROM max(CASE WHEN waiting IS TRUE
+    THEN age(now(), query_start) END)), 0) AS waiting,\n\t\t\t\t(SELECT coalesce(extract(epoch
+    FROM max(age(now(), prepared))), 0) FROM pg_prepared_xacts) AS prepared\n\t\t\tFROM
+    pg_stat_activity) T;\n\tEND IF;\n\n\tperform set_config('zbx_tmp.trans_json_res',
+    res, false);\nEND $$;\n\nSELECT current_setting('zbx_tmp.trans_json_res');\n
+  pgsql.uptime.sql: |
+    SELECT date_part('epoch', now() - pg_postmaster_start_time())::int
+  pgsql.wal.stat.sql: |
+    DO LANGUAGE plpgsql $$\nDECLARE\n\tver integer;\n\tres text
+    := '{\"write\":0,\"count\":0}';\nBEGIN\n\tSELECT current_setting('server_version_num')
+    INTO ver;\n\n\tIF (SELECT NOT pg_is_in_recovery()) THEN\n\t\tIF (ver >= 100000)
+    THEN\n\t\t\tSELECT row_to_json(T) INTO res FROM (\n\t\t\t\tSELECT pg_wal_lsn_diff(pg_current_wal_lsn(),'0/00000000')
+    AS WRITE,\n\t\t\t\tcount(*) FROM pg_ls_waldir() AS COUNT\n\t\t\t\t) T;\n\n\t\tELSE\n\t\t\tSELECT
+    row_to_json(T) INTO res FROM (\n\t\t\t\tSELECT pg_xlog_location_diff(pg_current_xlog_location(),'0/00000000')
+    AS WRITE,\n\t\t\t\tcount(*) FROM pg_ls_dir('pg_xlog') AS COUNT\n\t\t\t\t) T;\n\t\tEND
+    IF;\n\tEND IF;\n\n\tperform set_config('zbx_tmp.wal_json_res', res, false);\nEND
+    $$;\n\nselect current_setting('zbx_tmp.wal_json_res');\n
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etc-zabbix-agentd-d
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "zabbix-operator-chart.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  db_postgresql.conf: |-
+    UserParameter=pgsql.bgwriter[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.bgwriter.sql"
+
+    UserParameter=pgsql.connections.sum[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.connections.sum.sql"
+    UserParameter=pgsql.connections[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.connections.sql"
+    UserParameter=pgsql.connections.prepared[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.connections.prepared.sql"
+
+    UserParameter=pgsql.dbstat.sum[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.dbstat.sum.sql"
+    UserParameter=pgsql.dbstat[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.dbstat.sql"
+
+    UserParameter=pgsql.transactions[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.transactions.sql"
+    UserParameter=pgsql.config.hash[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.config.hash.sql"
+    UserParameter=pgsql.wal.stat[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.wal.stat.sql"
+    UserParameter=pgsql.locks[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.locks.sql"
+    UserParameter=pgsql.queries[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -v tmax=$5 -f "/var/lib/zabbix/postgresql/pgsql.query.time.sql"
+    UserParameter=pgsql.uptime[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.uptime.sql"
+    UserParameter=pgsql.cache.hit[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.cache.hit.sql"
+    UserParameter=pgsql.scans[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.scans.sql"
+    UserParameter=pgsql.frozenxid[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.frozenxid.sql"
+
+    UserParameter=pgsql.discovery.db[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.discovery.db.sql"
+    UserParameter=pgsql.db.size[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -c "SELECT pg_database_size('$5')"
+    UserParameter=pgsql.ping[*], pg_isready -h "$1" -p "$2" -U "$3" -d "$4"
+    UserParameter=pgsql.ping.time[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.ping.time.sql"
+    UserParameter=pgsql.version[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -c "SELECT version();"
+
+    UserParameter=pgsql.replication.count[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -c "SELECT count(*) FROM pg_stat_replication"
+    UserParameter=pgsql.replication.recovery_role[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.replication.recovery_role.sql"
+    UserParameter=pgsql.replication.lag.sec[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.replication.lag.sql"
+    UserParameter=pgsql.replication.status[*], psql -qtAX -h "$1" -p "$2" -U "$3" -d "$4" -f "/var/lib/zabbix/postgresql/pgsql.replication.status.sql"

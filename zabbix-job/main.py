@@ -59,10 +59,10 @@ class Monitoring(object):
                         ]
                     )
                 elif node == "postgres-server":
-                    template = self.zapi.template.get(filter={"name": "Template OS Linux by Zabbix agent"})
+                    template = self.zapi.template.get(filter={"name": "Template DB PostgreSQL"})
                     templateid = template[0].get("templateid")
                     self.zapi.host.create(
-                        host=node,
+                        host=node+"-0",
                         tags=[
                             {"tag": "kubernetes.io/type", "value": "node"},
                             {"tag": "prometheus/node-exporter", "value": "false"},
@@ -75,7 +75,7 @@ class Monitoring(object):
                             {
                                 "type": 1,
                                 "main": 1,
-                                "useip": 1,
+                                "useip": 0,
                                 "ip": "127.0.0.1",
                                 "dns": node,
                                 "port": "10050"
