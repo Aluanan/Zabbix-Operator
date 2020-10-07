@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+- name: var-lib-zabbix-postgres
+  files:
+    - postgresql/postgresql/pgsql.bgwriter.sql
+    - postgresql/postgresql/pgsql.cache.hit.sql
+    - postgresql/postgresql/pgsql.config.hash.sql
+    - postgresql/postgresql/pgsql.connections.prepared.sql
+    - postgresql/postgresql/pgsql.connections.sql
+    - postgresql/postgresql/pgsql.connections.sum.sql
+    - postgresql/postgresql/pgsql.dbstat.sql
+    - postgresql/postgresql/pgsql.dbstat.sum.sql
+    - postgresql/postgresql/pgsql.discovery.db.sql
+    - postgresql/postgresql/pgsql.frozenxid.sql
+    - postgresql/postgresql/pgsql.locks.sql
+    - postgresql/postgresql/pgsql.ping.time.sql
+    - postgresql/postgresql/pgsql.query.time.sql
+    - postgresql/postgresql/pgsql.replication.lag.sql
+    - postgresql/postgresql/pgsql.replication.recovery_role.sql
+    - postgresql/postgresql/pgsql.replication.status.sql
+    - postgresql/postgresql/pgsql.scans.sql
+    - postgresql/postgresql/pgsql.transactions.sql
+    - postgresql/postgresql/pgsql.uptime.sql
+    - postgresql/postgresql/pgsql.wal.stat.sql
+
+- name: etc-zabbix-agentd-d
+  files:
+    - db_postgresql.conf

@@ -10,4 +10,5 @@ FROM postgres
 LABEL maintainer="tylerfrench2@gmail.com"
 
 ENV POSTGRES_USER zabbix
+COPY ./zabbix-database/userinit.sh /docker-entrypoint-initdb.d/userinit.sh
 COPY --from=builder /usr/share/doc/zabbix-server-pgsql/create.sql.gz /docker-entrypoint-initdb.d/create.sql.gz

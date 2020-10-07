@@ -151,6 +151,8 @@
               release: "{{ release }}"
               domain: "{{ domain }}"
           spec:
+            hostname: postgres-server
+            dnsPolicy: ClusterFirst
             containers:
               - name: zabbix-agent
                 image: "{{ custom_agent_image | default(zabbix_agent_image) }}:{{ custom_agent_image_tag | default(zabbix_tag) }}"
@@ -158,6 +160,8 @@
                 env:
                   - name: ZBX_SERVER_HOST
                     value: zabbix-server
+                  - name: ZBX_HOSTNAME
+                    value: postgres-server
                 ports:
                   - containerPort: 10051
                     name: agent-active
@@ -165,6 +169,11 @@
                   - containerPort: 10050
                     name: agent-passive
                     protocol: TCP
+                volumeMounts:
+                  - name: etc-zabbix-agentd-d
+                    mountPath: /etc/zabbix/zabbix_agentd.d
+                  - name: var-lib-zabbix-postgres
+                    mountPath: /var/lib/zabbix/postgresql
               - name: postgres-server
                 imagePullPolicy: "{{ database_image_pull_policy | default(image_pull_policy) }}"
                 image: "{{ database_image }}:{{ database_image_tag }}"
@@ -181,9 +190,18 @@
                         optional: false
                   - name: PGDATA
                     value: /var/lib/postgresql/data
+                  - name: POSTGRES_HOST_AUTH_METHOD # Should remove this
+                    value: "trust"
                 volumeMounts:
                   - name: postgres-data
                     mountPath: /var/lib/postgresql/data
+            volumes:
+              - name: etc-zabbix-agentd-d
+                configMap:
+                  name: etc-zabbix-agentd-d
+              - name: var-lib-zabbix-postgres
+                configMap:
+                  name: var-lib-zabbix-postgres
         volumeClaimTemplates:
           - metadata:
               name: postgres-data
@@ -240,6 +258,8 @@
               release: "{{ release }}"
               domain: "{{ domain }}"
           spec:
+            hostname: zabbix-server
+            dnsPolicy: ClusterFirst
             containers:
               - name: zabbix-server
                 image: "{{ custom_server_image | default(zabbix_server_image) }}:{{ custom_server_image_tag | default(zabbix_tag) }}"
@@ -309,6 +329,8 @@
               release: "{{ release }}"
               domain: "{{ domain }}"
           spec:
+            hostname: zabbix-web
+            dnsPolicy: ClusterFirst
             containers:
               - name: zabbix-web
                 image: "{{ custom_web_image | default(zabbix_web_image) }}:{{ custom_web_image_tag | default(zabbix_tag) }}"
